@@ -373,7 +373,7 @@ GameObject:
   - component: {fileID: 323955580}
   - component: {fileID: 323955581}
   m_Layer: 0
-  m_Name: Snap Point Initialization
+  m_Name: Snap Point Initializer
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -408,7 +408,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SnapPointsInitialization
   floorTransform: {fileID: 329709718}
   cellSize: {x: 6.5, y: 5, z: 6.5}
-  yCount: 5
+  yCount: 10
   yPositionOffset: 1
 --- !u!1 &329709714
 GameObject:
@@ -1534,8 +1534,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0b0ece783b210144c9b071629848cb64, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BuildingManager
-  _cameraControl: {fileID: 1065719523}
-  _character: {fileID: 934386641}
   _woodWall: {fileID: 7297652171135404178, guid: 1364c49af1eddb74f9b9e2a88e4b20e6, type: 3}
   _woodRamp: {fileID: 6401349336250233046, guid: 0eded1f331ef8b145b98d8678d3d6e50, type: 3}
   _woodFloor: {fileID: 2376470085563045525, guid: 2e19ef42a70fec64c9581f8c524d0872, type: 3}
@@ -1554,6 +1552,9 @@ MonoBehaviour:
   _metalWallPreview: {fileID: 7297652171135404178, guid: 349da0dc18902a94ca71269e8779e5a7, type: 3}
   _metalRampPreview: {fileID: 6401349336250233046, guid: d11050d6445124345938b27d70dcdf15, type: 3}
   _metalFloorPreview: {fileID: 2376470085563045525, guid: 0803abbe863a5e24db87f758fc2bfcc7, type: 3}
+  _playerTransform: {fileID: 934386641}
+  _cameraControl: {fileID: 1065719523}
+  _snapPointsInitializer: {fileID: 323955581}
   _placementDistance: 8.5
   _minSnapDistance: 3.5
   _destroyDistance: 12
@@ -1563,10 +1564,7 @@ MonoBehaviour:
   _destroyLayerMask:
     serializedVersion: 2
     m_Bits: 192
-  _snapPointsInitialization: {fileID: 323955581}
-  _maxDistanceToUpdate: 1
-  _drawGizmos: 1
-  _showInitializedSnapPoints: 1
+  _maxTranslationDistance: 1
 --- !u!1 &1969781206
 GameObject:
   m_ObjectHideFlags: 0

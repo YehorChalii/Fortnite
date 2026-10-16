@@ -24,13 +24,7 @@ public class BuildingManager : MonoBehaviour
     public static Action<bool> OnBuildingModeToggle;
     public static Action<bool> OnUpdateCrosshair;
 
-    private bool _currentSnapPointAvailable;
-    private bool _previousSnapPointAvailable;
-
-    [Header("References")]
-    [SerializeField] private CameraControl _cameraControl;
-    [SerializeField] private Transform _character;
-
+    #region Building Pieces (Serializable objects)
     [Space]
     [Header("Building Pieces")]
     [Header("Wood")]
@@ -45,7 +39,9 @@ public class BuildingManager : MonoBehaviour
     [SerializeField] private GameObject _metalWall;
     [SerializeField] private GameObject _metalRamp;
     [SerializeField] private GameObject _metalFloor;
+    #endregion
 
+    #region Preview Building Pieces (Serializable objects)
     [Space]
     [Header("Preview Pieces")]
     [Header("Wood")]
@@ -60,55 +56,49 @@ public class BuildingManager : MonoBehaviour
     [SerializeField] private GameObject _metalWallPreview;
     [SerializeField] private GameObject _metalRampPreview;
     [SerializeField] private GameObject _metalFloorPreview;
+    #endregion
 
-    [Space]
+    [Header("References")]
+    [SerializeField] private Transform _playerTransform;
+    [SerializeField] private CameraControl _cameraControl;
+    [SerializeField] private SnapPointsInitializer _snapPointsInitializer;
+
     [Header("Properties")]
     [SerializeField] private float _placementDistance;
     [SerializeField] private float _minSnapDistance;
     [SerializeField] private float _destroyDistance;
+
+    [Header("Layer Masks")]
     [SerializeField] private LayerMask _hitLayerMask;
     [SerializeField] private LayerMask _destroyLayerMask;
 
     [Space]
-    [Header("Snap Points Initialization")]
-    [SerializeField] private SnapPointsInitializer _snapPointsInitializer;
-
-    [Space]
     [Header("Optimization")]
-    [SerializeField] private float _maxDistanceToUpdate;
+    [SerializeField] private float _maxTranslationDistance;
 
-    [Space]
-    [Header("Gizmos")]
-    [SerializeField] private bool _drawGizmos;
-    [SerializeField] private bool _showInitializedSnapPoints;
-
-    private PlayerInput _playerInput;
-
-    private SelectedBuildingPiece _selectedBuildingPiece = SelectedBuildingPiece.Wall;
-
-    private BuildingMaterial _selectedMaterial = BuildingMaterial.Wood;
-
-    private bool _buildingMode = false;
-
-    private List<SnapPoint> _wallAllSP = new List<SnapPoint>();
-    private List<SnapPoint> _wallReachableSP = new List<SnapPoint>();
-    private SnapPoint _wallClosestSP;
-
-    private List<SnapPoint> _centerAllSP = new List<SnapPoint>();
-    private List<SnapPoint> _centerReachableSP = new List<SnapPoint>();
-    private SnapPoint _centerClosestSP;
-
-    private SnapPoint _activeSnapPoint;
-
-    private Dictionary<Vector3Int, SnapPoint> _snapPointsGrid = new Dictionary<Vector3Int, SnapPoint>();
-
-    private float _currentDistance;
     private Vector3 _previousPosition;
 
-    private GameObject _previewInstance;
-    private GameObject _previewSourcePrefab;
+    #region Selected Building
+    private SelectedBuildingPiece _selectedBuildingPiece = SelectedBuildingPiece.Wall;
+    private BuildingMaterial _selectedMaterial = BuildingMaterial.Wood;
+    private bool _buildingMode = false;
+    #endregion
+
+    private ReachableSnapPoints _reachableSP;
+    private SnapPoint _activeSnapPoint;
+    private Dictionary<Vector3Int, SnapPoint> _snapPointsGrid = new Dictionary<Vector3Int, SnapPoint>();
+
+    private bool _currentSnapPointAvailable;
+    private bool _previousSnapPointAvailable;
 
     private Quaternion _currentBuildingPieceRotation;
+
+    #region Preview
+    private GameObject _previewInstance;
+    private GameObject _previewSourcePrefab;
+    #endregion
+
+    private PlayerInput _playerInput;
 
     private void Awake()
     {
@@ -145,18 +135,11 @@ public class BuildingManager : MonoBehaviour
 
         if (_buildingMode)
         {
-            if (_selectedBuildingPiece == SelectedBuildingPiece.Wall)
-            {
-                UpdateSnapPointList(_wallReachableSP, _wallAllSP);
-            }
-            else
-            {
-                UpdateSnapPointList(_centerReachableSP, _centerAllSP);
-            }
+            _reachableSP.UpdateSnapPoints(_selectedBuildingPiece);
 
-            _previousPosition = _character.transform.position;
+            _previousPosition = _playerTransform.transform.position;
 
-            OnUpdateCrosshair?.Invoke(_activeSnapPoint != null);
+            OnUpdateCrosshair?.Invoke(_currentSnapPointAvailable);
         }
         else
         {
@@ -198,16 +181,9 @@ public class BuildingManager : MonoBehaviour
 
         _selectedBuildingPiece = buildingPiece;
 
-        if (_selectedBuildingPiece == SelectedBuildingPiece.Wall)
-        {
-            UpdateSnapPointList(_wallReachableSP, _wallAllSP);
-        }
-        else
-        {
-            UpdateSnapPointList(_centerReachableSP, _centerAllSP);
-        }
+        _reachableSP.UpdateSnapPoints(_selectedBuildingPiece);
 
-        _previousPosition = _character.transform.position;
+        _previousPosition = _playerTransform.transform.position;
 
         DestroyPreview();
 
@@ -217,23 +193,11 @@ public class BuildingManager : MonoBehaviour
     private void HandlePlace(InputAction.CallbackContext ctx)
     {
         if (!_buildingMode) return;
+        if (!_currentSnapPointAvailable) return;
 
         GameObject currentBuildingPiece = GetCurrentBuildingPiece();
-
-        if (_selectedBuildingPiece == SelectedBuildingPiece.Wall)
-        {
-            if (_wallClosestSP != null)
-            {
-                PlaceBuildingPiece(currentBuildingPiece, _currentBuildingPieceRotation, _wallClosestSP, _selectedBuildingPiece, _selectedMaterial);
-            }
-        }
-        else
-        {
-            if (_centerClosestSP != null)
-            {
-                PlaceBuildingPiece(currentBuildingPiece, _currentBuildingPieceRotation, _centerClosestSP, _selectedBuildingPiece, _selectedMaterial);
-            }
-        }
+        
+        PlaceBuildingPiece(currentBuildingPiece, _currentBuildingPieceRotation, _activeSnapPoint, _selectedBuildingPiece, _selectedMaterial);
     }
 
     private void PlaceBuildingPiece(GameObject buildingPiece, Quaternion rotation, SnapPoint closestSnapPoint, SelectedBuildingPiece selectedBuildingPiece, BuildingMaterial buildingMaterial)
@@ -248,14 +212,7 @@ public class BuildingManager : MonoBehaviour
 
         SupportNeighboringSnapPoints(selectedBuildingPiece, rotation);
 
-        if (selectedBuildingPiece == SelectedBuildingPiece.Wall)
-        {
-            UpdateSnapPointList(_wallReachableSP, _wallAllSP);
-        }
-        else
-        {
-            UpdateSnapPointList(_centerReachableSP, _centerAllSP);
-        }
+        _reachableSP.UpdateSnapPoints(_selectedBuildingPiece);
 
         DestroyPreview();
         OnBuildingPlaced?.Invoke(buildingMaterial);
@@ -295,10 +252,8 @@ public class BuildingManager : MonoBehaviour
     private void InitializeSnapPoints()
     {
         SnapPointsData snapPoints = _snapPointsInitializer.GetSnapPoints();
-
-        _wallAllSP = snapPoints.WallSnapPoints;
-        _centerAllSP = snapPoints.CenterSnapPoints;
         _snapPointsGrid = snapPoints.SnapPointsGrid;
+        _reachableSP = new ReachableSnapPoints(snapPoints.WallSnapPoints, snapPoints.CenterSnapPoints, _playerTransform, _placementDistance);
 
         Destroy(_snapPointsInitializer);
     }
@@ -307,43 +262,21 @@ public class BuildingManager : MonoBehaviour
     {
         UpdateSnapPoints();
         SetClosestSnapPoint();
-        UpdateUI();
+        UpdatePreview();
+        UpdateCrossHair();
     }
 
     private void UpdateSnapPoints()
     {
         if (!_buildingMode) return;
 
-        _currentDistance = Vector3.Distance(_character.transform.position, _previousPosition);
+        float translationDistance = Vector3.Distance(_playerTransform.transform.position, _previousPosition);
 
-        if (_currentDistance >= _maxDistanceToUpdate)
+        if (translationDistance >= _maxTranslationDistance)
         {
-            if (_selectedBuildingPiece == SelectedBuildingPiece.Wall)
-            {
-                UpdateSnapPointList(_wallReachableSP, _wallAllSP);
-            }
-            else
-            {
-                UpdateSnapPointList(_centerReachableSP, _centerAllSP);
-            }
+            _reachableSP.UpdateSnapPoints(_selectedBuildingPiece);
 
-            _previousPosition = _character.transform.position;
-        }
-    }
-    private void UpdateSnapPointList(List<SnapPoint> reachableSnapPoints, List<SnapPoint> allSnapPoints)
-    {
-        reachableSnapPoints.Clear();
-
-        foreach (var snapPoint in allSnapPoints)
-        {
-            if (!snapPoint.IsAvailable(_selectedBuildingPiece) ||
-                !snapPoint.IsSupported) continue;
-
-            float currentDistance = Vector3.Distance(snapPoint.Position, _character.position);
-            if (currentDistance <= _placementDistance)
-            {
-                reachableSnapPoints.Add(snapPoint);
-            }
+            _previousPosition = _playerTransform.transform.position;
         }
     }
 
@@ -351,16 +284,7 @@ public class BuildingManager : MonoBehaviour
     {
         if (!_buildingMode) return;
 
-        if (_selectedBuildingPiece == SelectedBuildingPiece.Wall)
-        {
-            _wallClosestSP = GetClosestSnapPoint(_wallReachableSP);
-            _activeSnapPoint = _wallClosestSP;
-        }
-        else
-        {
-            _centerClosestSP = GetClosestSnapPoint(_centerReachableSP);
-            _activeSnapPoint = _centerClosestSP;
-        }
+        _activeSnapPoint = GetClosestSnapPoint(_reachableSP.GetSnapPoints(_selectedBuildingPiece));
 
         _previousSnapPointAvailable = _currentSnapPointAvailable;
         _currentSnapPointAvailable = _activeSnapPoint != null ? true : false;
@@ -399,13 +323,6 @@ public class BuildingManager : MonoBehaviour
         return closestSnapPoint;
     }
 
-    private void UpdateUI()
-    {
-        if (!_buildingMode) return;
-        UpdatePreview();
-        UpdateCrossHair();
-    }
-
     private void UpdatePreview()
     {
         if (!_currentSnapPointAvailable)
@@ -415,7 +332,7 @@ public class BuildingManager : MonoBehaviour
         }
 
         _currentBuildingPieceRotation = _selectedBuildingPiece == SelectedBuildingPiece.Wall
-            ? _wallClosestSP.Rotation
+            ? _activeSnapPoint.Rotation
             : GetBuildingPieceAngle(_cameraControl.GetCameraFlatForward());
 
         GameObject currentPreview = GetCurrentPreview();
@@ -424,6 +341,7 @@ public class BuildingManager : MonoBehaviour
         {
             DestroyPreview();
             SpawnPreview(currentPreview, _activeSnapPoint.Position, _currentBuildingPieceRotation);
+
             return;
         }
 
@@ -451,7 +369,7 @@ public class BuildingManager : MonoBehaviour
     {
         if (_previousSnapPointAvailable != _currentSnapPointAvailable)
         {
-            OnUpdateCrosshair?.Invoke(_activeSnapPoint != null);
+            OnUpdateCrosshair?.Invoke(_currentSnapPointAvailable);
         }
     }
 
@@ -474,57 +392,57 @@ public class BuildingManager : MonoBehaviour
     private void HandleWallSupport(Quaternion rotation)
     {
         //Walls Support
-        SupportSnapPoint(new Vector3Int(0, 2, 0), _wallClosestSP); //up
-        SupportSnapPoint(new Vector3Int(0, -2, 0), _wallClosestSP); //down
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(-2, 0, 0)), _wallClosestSP); //left relative
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(2, 0, 0)), _wallClosestSP); //right relative
+        SupportSnapPoint(new Vector3Int(0, 2, 0)); //up
+        SupportSnapPoint(new Vector3Int(0, -2, 0)); //down
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(-2, 0, 0))); //left relative
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(2, 0, 0))); //right relative
 
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(-1, 0, 1)), _wallClosestSP);
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(1, 0, 1)), _wallClosestSP);
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(-1, 0, -1)), _wallClosestSP);
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(1, 0, -1)), _wallClosestSP);
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(-1, 0, 1)));
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(1, 0, 1)));
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(-1, 0, -1)));
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(1, 0, -1)));
 
         //Center Support
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 0, 1)), _wallClosestSP); //front
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 0, -1)), _wallClosestSP); //back
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 2, 1)), _wallClosestSP); //front up
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 2, -1)), _wallClosestSP); //back up
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 0, 1))); //front
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 0, -1))); //back
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 2, 1))); //front up
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 2, -1))); //back up
     }
 
     private void HandleRampSupport(Quaternion rotation)
     {
         //Center Support
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(-2, 0, 0)), _centerClosestSP); //left
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(2, 0, 0)), _centerClosestSP); //right
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 0, -2)), _centerClosestSP); //back
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 2, 2)), _centerClosestSP); //front up
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(-2, 0, 0))); //left
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(2, 0, 0))); //right
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 0, -2))); //back
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 2, 2))); //front up
 
         //Wall Support
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 0, 1)), _centerClosestSP); //front
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(1, 0, 0)), _centerClosestSP); //back
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(-1, 0, 0)), _centerClosestSP); //left
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 0, -1)), _centerClosestSP); //right
-        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 2, 1)), _centerClosestSP); //front up
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 0, 1))); //front
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(1, 0, 0))); //back
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(-1, 0, 0))); //left
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 0, -1))); //right
+        SupportSnapPoint(GetRotationRelativeOffset(rotation, new Vector3Int(0, 2, 1))); //front up
     }
 
     private void HandleFloorSupport()
     {
         //Center Support
-        SupportSnapPoint(new Vector3Int(2, 0, 0), _centerClosestSP);
-        SupportSnapPoint(new Vector3Int(-2, 0, 0), _centerClosestSP);
-        SupportSnapPoint(new Vector3Int(0, 0, 2), _centerClosestSP);
-        SupportSnapPoint(new Vector3Int(0, 0, -2), _centerClosestSP);
+        SupportSnapPoint(new Vector3Int(2, 0, 0));
+        SupportSnapPoint(new Vector3Int(-2, 0, 0));
+        SupportSnapPoint(new Vector3Int(0, 0, 2));
+        SupportSnapPoint(new Vector3Int(0, 0, -2));
 
         //Wall Support
-        SupportSnapPoint(new Vector3Int(1, 0, 0), _centerClosestSP);
-        SupportSnapPoint(new Vector3Int(-1, 0, 0), _centerClosestSP);
-        SupportSnapPoint(new Vector3Int(0, 0, 1), _centerClosestSP);
-        SupportSnapPoint(new Vector3Int(0, 0, -1), _centerClosestSP);
+        SupportSnapPoint(new Vector3Int(1, 0, 0));
+        SupportSnapPoint(new Vector3Int(-1, 0, 0));
+        SupportSnapPoint(new Vector3Int(0, 0, 1));
+        SupportSnapPoint(new Vector3Int(0, 0, -1));
     }
 
-    private void SupportSnapPoint(Vector3Int offset, SnapPoint closestSnapPoint)
+    private void SupportSnapPoint(Vector3Int offset)
     {
-        Vector3Int neighboringGridCoordinate = closestSnapPoint.GridCoordinate + offset;
+        Vector3Int neighboringGridCoordinate = _activeSnapPoint.GridCoordinate + offset;
         if (_snapPointsGrid.TryGetValue(neighboringGridCoordinate, out SnapPoint snapPoint))
         {
             snapPoint.IsSupported = true;
@@ -581,61 +499,61 @@ public class BuildingManager : MonoBehaviour
         };
     }
 
-    private void OnDrawGizmos()
-    {
-        if (_showInitializedSnapPoints)
-        {
-            DrawInitializedSnapPoints(_wallAllSP, Color.green, new Vector3(0.2f, 0.2f, 0.2f));
-            DrawInitializedSnapPoints(_centerAllSP, Color.yellow, new Vector3(0.2f, 0.2f, 0.2f));
-        }
+    //private void OnDrawGizmos()
+    //{
+    //    if (_showInitializedSnapPoints)
+    //    {
+    //        DrawInitializedSnapPoints(_wallAllSP, Color.green, new Vector3(0.2f, 0.2f, 0.2f));
+    //        DrawInitializedSnapPoints(_centerAllSP, Color.yellow, new Vector3(0.2f, 0.2f, 0.2f));
+    //    }
 
-        if (!_drawGizmos || !_buildingMode) return;
+    //    if (!_drawGizmos || !_buildingMode) return;
 
-        if (_selectedBuildingPiece == SelectedBuildingPiece.Wall)
-        {
-            DrawReachableSnapPoints(_wallReachableSP, _wallClosestSP);
-        }
-        else
-        {
-            DrawReachableSnapPoints(_centerReachableSP, _centerClosestSP);
-        }
-    }
+    //    if (_selectedBuildingPiece == SelectedBuildingPiece.Wall)
+    //    {
+    //        DrawReachableSnapPoints(_wallReachableSP, _wallClosestSP);
+    //    }
+    //    else
+    //    {
+    //        DrawReachableSnapPoints(_centerReachableSP, _centerClosestSP);
+    //    }
+    //}
 
-    private void DrawInitializedSnapPoints(List<SnapPoint> snapPoints, Color color, Vector3 size)
-    {
-        if (snapPoints != null && snapPoints.Count > 0)
-        {
-            Gizmos.color = color;
+    //private void DrawInitializedSnapPoints(List<SnapPoint> snapPoints, Color color, Vector3 size)
+    //{
+    //    if (snapPoints != null && snapPoints.Count > 0)
+    //    {
+    //        Gizmos.color = color;
 
-            foreach (var snapPoint in snapPoints)
-            {
-                Gizmos.DrawWireCube(snapPoint.Position, size);
-            }
-        }
-    }
+    //        foreach (var snapPoint in snapPoints)
+    //        {
+    //            Gizmos.DrawWireCube(snapPoint.Position, size);
+    //        }
+    //    }
+    //}
 
-    private void DrawReachableSnapPoints(List<SnapPoint> reachableSnapPoints, SnapPoint closestSnapPoint)
-    {
-        DrawSnapPoints(reachableSnapPoints, Color.cyan, new Vector3(0.3f, 0.3f, 0.3f));
+    //private void DrawReachableSnapPoints(List<SnapPoint> reachableSnapPoints, SnapPoint closestSnapPoint)
+    //{
+    //    DrawSnapPoints(reachableSnapPoints, Color.cyan, new Vector3(0.3f, 0.3f, 0.3f));
 
-        if (closestSnapPoint != null)
-        {
-            Gizmos.color = Color.red;
-            Gizmos.DrawCube(closestSnapPoint.Position, new Vector3(0.4f, 0.4f, 0.4f));
-        }
-    }
+    //    if (closestSnapPoint != null)
+    //    {
+    //        Gizmos.color = Color.red;
+    //        Gizmos.DrawCube(closestSnapPoint.Position, new Vector3(0.4f, 0.4f, 0.4f));
+    //    }
+    //}
 
-    private void DrawSnapPoints(List<SnapPoint> snapPoints, Color color, Vector3 size)
-    {
-        if (snapPoints == null || snapPoints.Count == 0) return;
+    //private void DrawSnapPoints(List<SnapPoint> snapPoints, Color color, Vector3 size)
+    //{
+    //    if (snapPoints == null || snapPoints.Count == 0) return;
 
-        Gizmos.color = color;
-        foreach (var snapPoint in snapPoints)
-        {
-            if (!snapPoint.IsAvailable(_selectedBuildingPiece) ||
-                !snapPoint.IsSupported) continue;
+    //    Gizmos.color = color;
+    //    foreach (var snapPoint in snapPoints)
+    //    {
+    //        if (!snapPoint.IsAvailable(_selectedBuildingPiece) ||
+    //            !snapPoint.IsSupported) continue;
 
-            Gizmos.DrawWireCube(snapPoint.Position, size);
-        }
-    }
+    //        Gizmos.DrawWireCube(snapPoint.Position, size);
+    //    }
+    //}
 }
