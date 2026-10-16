@@ -70,8 +70,8 @@ public class BuildingManager : MonoBehaviour
     [SerializeField] private LayerMask _destroyLayerMask;
 
     [Space]
-    [Header("Initialize Snap Points Properties")]
-    [SerializeField] private SnapPointsInitialization _snapPointsInitialization;
+    [Header("Snap Points Initialization")]
+    [SerializeField] private SnapPointsInitializer _snapPointsInitializer;
 
     [Space]
     [Header("Optimization")]
@@ -287,13 +287,20 @@ public class BuildingManager : MonoBehaviour
 
     private void Start()
     {
-        SnapPointsData snapPoints = _snapPointsInitialization.GetSnapPoints();
+        InitializeSnapPoints();
+
+        OnBuildingModeToggle?.Invoke(_buildingMode);
+    }
+
+    private void InitializeSnapPoints()
+    {
+        SnapPointsData snapPoints = _snapPointsInitializer.GetSnapPoints();
 
         _wallAllSP = snapPoints.WallSnapPoints;
         _centerAllSP = snapPoints.CenterSnapPoints;
         _snapPointsGrid = snapPoints.SnapPointsGrid;
 
-        OnBuildingModeToggle?.Invoke(_buildingMode);
+        Destroy(_snapPointsInitializer);
     }
 
     private void Update()
