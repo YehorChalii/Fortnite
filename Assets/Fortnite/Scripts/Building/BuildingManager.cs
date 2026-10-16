@@ -71,9 +71,7 @@ public class BuildingManager : MonoBehaviour
 
     [Space]
     [Header("Initialize Snap Points Properties")]
-    [SerializeField] private Transform _floorSize;
-    [SerializeField] private Vector3 _cellSize;
-    [SerializeField, Range(1f, 10f)] private int _YSnapPointsCount;
+    [SerializeField] private SnapPointsInitialization _snapPointsInitialization;
 
     [Space]
     [Header("Optimization")]
@@ -111,8 +109,6 @@ public class BuildingManager : MonoBehaviour
     private GameObject _previewSourcePrefab;
 
     private Quaternion _currentBuildingPieceRotation;
-
-    private SnapPointsInitialization _snapPointsInitialization;
 
     private void Awake()
     {
@@ -291,8 +287,11 @@ public class BuildingManager : MonoBehaviour
 
     private void Start()
     {
-        _snapPointsInitialization = new SnapPointsInitialization(_floorSize, _cellSize, _YSnapPointsCount);
-        (_wallAllSP, _centerAllSP, _snapPointsGrid) = _snapPointsInitialization.GetSnapPoints();
+        SnapPointsData snapPoints = _snapPointsInitialization.GetSnapPoints();
+
+        _wallAllSP = snapPoints.WallSnapPoints;
+        _centerAllSP = snapPoints.CenterSnapPoints;
+        _snapPointsGrid = snapPoints.SnapPointsGrid;
 
         OnBuildingModeToggle?.Invoke(_buildingMode);
     }

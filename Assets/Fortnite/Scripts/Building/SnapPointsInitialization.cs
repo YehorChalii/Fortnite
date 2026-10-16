@@ -1,138 +1,140 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class SnapPointsInitialization
+public class SnapPointsInitialization : MonoBehaviour
 {
-    private Transform _floorSize;
-    private Vector3 _cellSize;
-    private int _YSnapPointsCount;
+    [SerializeField] private Transform _floorTransform;
+    [SerializeField] private Vector3 _cellSize;
+    [SerializeField] private int _yCount;
 
-    private List<SnapPoint> _wallAllSP = new List<SnapPoint>();
-    private List<SnapPoint> _centerAllSP = new List<SnapPoint>();
+    private Vector3 _startPosition;
+    private Vector3Int _count;
+
+    private List<SnapPoint> _wallSP = new List<SnapPoint>();
+    private List<SnapPoint> _centerSP = new List<SnapPoint>();
     private Dictionary<Vector3Int, SnapPoint> _snapPointsGrid = new Dictionary<Vector3Int, SnapPoint>();
 
-    public SnapPointsInitialization(Transform floorSize, Vector3 cellSize, int YSnapPointsCount)
+    private void Awake()
     {
-        _floorSize = floorSize;
-        _cellSize = cellSize;
-        _YSnapPointsCount = YSnapPointsCount;
+        _startPosition = GetStartPosition();
+        _count = GetCount();
     }
 
-    public (List<SnapPoint>, List<SnapPoint>, Dictionary<Vector3Int, SnapPoint>) GetSnapPoints()
+    private Vector3 GetStartPosition()
+    {
+        return new Vector3(_floorTransform.position.x - _floorTransform.localScale.x / 2f, 0f, _floorTransform.position.z - _floorTransform.localScale.z / 2f);
+    }
+
+    private Vector3Int GetCount()
+    {
+        int xCount = Mathf.RoundToInt(_floorTransform.localScale.x / _cellSize.x);
+        int zCount = Mathf.RoundToInt(_floorTransform.localScale.z / _cellSize.z);
+
+        return new Vector3Int(xCount, _yCount, zCount);
+    }
+
+    //
+
+    public SnapPointsData GetSnapPoints()
     {
         InitializeSnapPoints();
 
-        return (_wallAllSP, _centerAllSP, _snapPointsGrid);
+        return new SnapPointsData(_wallSP, _centerSP, _snapPointsGrid);
     }
 
     private void InitializeSnapPoints()
     {
-        Vector3 floorStartPosition = new Vector3(_floorSize.position.x, 0, _floorSize.position.z) - new Vector3(_floorSize.localScale.x / 2, 0, _floorSize.localScale.z / 2);
-        float XSnapPointsCount = Mathf.RoundToInt(_floorSize.localScale.x / _cellSize.x);
-        float ZSnapPointsCount = Mathf.RoundToInt(_floorSize.localScale.z / _cellSize.z);
+        InitializeCenterSnapPoints();
+        InitializeWallSnapPoints();
 
-        _centerAllSP = GetInitializedCenterSnapPoints(floorStartPosition, XSnapPointsCount, ZSnapPointsCount);
-        _wallAllSP = GetInitializedWallSnapPoints(floorStartPosition, XSnapPointsCount, ZSnapPointsCount);
+        Debug.Log($"Initialized {_centerSP.Count} center snap points and {_wallSP.Count} wall snap points.");
     }
 
-    private List<SnapPoint> GetInitializedCenterSnapPoints(Vector3 floorStartPosition, float XSnapPointsCount, float ZSnapPointsCount)
+    private void InitializeCenterSnapPoints()
+    {
+        Vector3 offset = new Vector3(_cellSize.x / 2f, 1f, _cellSize.z / 2f);
+
+        _centerSP = GetInitializedSnapPoints<CenterSnapPoint>(_count, offset, Quaternion.identity, Vector3Int.zero);
+    }
+
+    private void InitializeWallSnapPoints()
+    {
+        //Along X
+        Vector3Int count = new Vector3Int(_count.x, _count.y, _count.z + 1);
+        Vector3 offset = new Vector3(_cellSize.x / 2f, 0f, 0f);
+
+        _wallSP = GetInitializedSnapPoints<WallSnapPoint>(count, offset, Quaternion.identity, new Vector3Int(0, 0, -1));
+
+        //ALong Z
+        count = new Vector3Int(_count.x + 1, _count.y, _count.z);
+        offset = new Vector3(0f, 0f, _cellSize.z / 2f);
+        Quaternion rotation = Quaternion.Euler(0f, 90f, 0f);
+
+        _wallSP.AddRange(GetInitializedSnapPoints<WallSnapPoint>(count, offset, rotation, new Vector3Int(-1, 0, 0)));
+    }
+
+    private List<SnapPoint> GetInitializedSnapPoints<T>(
+        Vector3Int count,
+        Vector3 offset,
+        Quaternion rotation,
+        Vector3Int gridOffset) where T : SnapPoint, new()
     {
         List<SnapPoint> snapPoints = new List<SnapPoint>();
+        List<Vector3> positions = GetSnapPointsPositionsList(count, offset);
 
-        for (int y = 0; y < _YSnapPointsCount; y++)
+        bool hasGridOffset = gridOffset != Vector3Int.zero;
+
+        int index = 0;
+
+        for (int x = 0; x < count.x; x++)
         {
-            for (int x = 0; x < XSnapPointsCount; x++)
+            for (int y = 0; y < count.y; y++)
             {
-                for (int z = 0; z < ZSnapPointsCount; z++)
+                for (int z = 0; z < count.z; z++)
                 {
-                    float XPosition = (_cellSize.x / 2) + (_cellSize.x * x);
-                    float YPosition = (_cellSize.y / 5) + (_cellSize.y * y);
-                    float ZPosition = (_cellSize.z / 2) + (_cellSize.z * z);
+                    Vector3Int gridCoordinate = new Vector3Int(
+                        x * 2 + (hasGridOffset ? 0 : gridOffset.x),
+                        y * 2 + gridOffset.y,
+                        z * 2 + (hasGridOffset ? 0 : gridOffset.z)
+                    );
 
-                    Vector3 snapPointPosition = floorStartPosition + new Vector3(XPosition, YPosition, ZPosition);
-                    Vector3Int gridCoordinate = new Vector3Int(x * 2, y * 2, z * 2);
-
-                    CenterSnapPoint centerSnapPoint = new CenterSnapPoint
+                    T snapPoint = new T
                     {
-                        Position = snapPointPosition,
+                        Position = positions[index++],
                         GridCoordinate = gridCoordinate,
-                        IsSupported = y == 0 ? true : false
+                        IsSupported = y == 0
                     };
 
-                    snapPoints.Add(centerSnapPoint);
+                    if (snapPoint is WallSnapPoint wallSnapPoint)
+                    {
+                        wallSnapPoint.Rotation = rotation;
+                    }
 
-                    _snapPointsGrid.Add(gridCoordinate, centerSnapPoint);
+                    snapPoints.Add(snapPoint);
+                    _snapPointsGrid.Add(snapPoint.GridCoordinate, snapPoint);
                 }
             }
         }
-
-        Debug.Log($"Initialized Center Snap Points: {snapPoints.Count}");
 
         return snapPoints;
     }
 
-    private List<SnapPoint> GetInitializedWallSnapPoints(Vector3 floorStartPosition, float XSnapPointsCount, float ZSnapPointsCount)
+    private List<Vector3> GetSnapPointsPositionsList(Vector3Int count, Vector3 offset)
     {
-        List<SnapPoint> snapPoints = new List<SnapPoint>();
+        List<Vector3> positions = new List<Vector3>();
 
-        for (int y = 0; y < _YSnapPointsCount; y++)
+        for (int x = 0; x < count.x; x++)
         {
-            for (int x = 0; x < XSnapPointsCount; x++)
+            for (int y = 0; y < count.y; y++)
             {
-                for (int z = 0; z <= ZSnapPointsCount; z++)
+                for (int z = 0; z < count.z; z++)
                 {
-                    float XPosition = (_cellSize.x / 2) + (_cellSize.x * x);
-                    float YPosition = (_cellSize.y * y);
-                    float ZPosition = (_cellSize.z * z);
-
-                    Vector3 snapPointPosition = floorStartPosition + new Vector3(XPosition, YPosition, ZPosition);
-                    Vector3Int gridCoordinate = new Vector3Int(x * 2, y * 2, z * 2 - 1);
-
-                    WallSnapPoint wallSnapPoint = new WallSnapPoint
-                    {
-                        Position = snapPointPosition,
-                        Rotation = Quaternion.identity,
-                        GridCoordinate = gridCoordinate,
-                        IsSupported = y == 0 ? true : false
-                    };
-
-                    snapPoints.Add(wallSnapPoint);
-
-                    _snapPointsGrid.Add(gridCoordinate, wallSnapPoint);
+                    Vector3 position = new Vector3(_cellSize.x * x, _cellSize.y * y, _cellSize.z * z);
+                    positions.Add(_startPosition + position + offset);
                 }
             }
         }
 
-        for (int y = 0; y < _YSnapPointsCount; y++)
-        {
-            for (int x = 0; x <= XSnapPointsCount; x++)
-            {
-                for (int z = 0; z < ZSnapPointsCount; z++)
-                {
-                    float XPosition = (_cellSize.x * x);
-                    float YPosition = (_cellSize.y * y);
-                    float ZPosition = (_cellSize.x / 2) + (_cellSize.z * z);
-
-                    Vector3 snapPointPosition = floorStartPosition + new Vector3(XPosition, YPosition, ZPosition);
-                    Vector3Int gridCoordinate = new Vector3Int(x * 2 - 1, y * 2, z * 2);
-
-                    WallSnapPoint wallSnapPoint = new WallSnapPoint
-                    {
-                        Position = snapPointPosition,
-                        Rotation = Quaternion.Euler(0, 90, 0),
-                        GridCoordinate = gridCoordinate,
-                        IsSupported = y == 0 ? true : false
-                    };
-
-                    snapPoints.Add(wallSnapPoint);
-
-                    _snapPointsGrid.Add(gridCoordinate, wallSnapPoint);
-                }
-            }
-        }
-
-        Debug.Log($"Initialized Wall Snap Points: {snapPoints.Count}");
-
-        return snapPoints;
+        return positions;
     }
 }
