@@ -3,6 +3,20 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+public enum SelectedBuildingPiece 
+{
+    Wall,
+    Ramp,
+    Floor
+}
+
+public enum BuildingMaterial
+{
+    Wood,
+    Brick,
+    Metal
+}
+
 public class BuildingManager : MonoBehaviour
 {
     public static Action<BuildingMaterial> OnBuildingPlaced;
@@ -58,7 +72,7 @@ public class BuildingManager : MonoBehaviour
     [Space]
     [Header("Initialize Snap Points Properties")]
     [SerializeField] private Transform _floorSize;
-    [SerializeField] private Vector3 _gridSize;
+    [SerializeField] private Vector3 _cellSize;
     [SerializeField, Range(1f, 10f)] private int _YSnapPointsCount;
 
     [Space]
@@ -72,10 +86,8 @@ public class BuildingManager : MonoBehaviour
 
     private PlayerInput _playerInput;
 
-    public enum SelectedBuildingPiece { Wall, Ramp, Floor }
     private SelectedBuildingPiece _selectedBuildingPiece = SelectedBuildingPiece.Wall;
 
-    public enum BuildingMaterial { Wood, Brick, Metal }
     private BuildingMaterial _selectedMaterial = BuildingMaterial.Wood;
 
     private bool _buildingMode = false;
@@ -99,6 +111,8 @@ public class BuildingManager : MonoBehaviour
     private GameObject _previewSourcePrefab;
 
     private Quaternion _currentBuildingPieceRotation;
+
+    private SnapPointsInitialization _snapPointsInitialization;
 
     private void Awake()
     {
@@ -277,112 +291,10 @@ public class BuildingManager : MonoBehaviour
 
     private void Start()
     {
-        InitializeSnapPoints();
+        _snapPointsInitialization = new SnapPointsInitialization(_floorSize, _cellSize, _YSnapPointsCount);
+        (_wallAllSP, _centerAllSP, _snapPointsGrid) = _snapPointsInitialization.GetSnapPoints();
 
         OnBuildingModeToggle?.Invoke(_buildingMode);
-    }
-
-    private void InitializeSnapPoints()
-    {
-        Vector3 floorStartPosition = new Vector3(_floorSize.position.x, 0, _floorSize.position.z) - new Vector3(_floorSize.localScale.x / 2, 0, _floorSize.localScale.z / 2);
-        float XSnapPointsCount = Mathf.RoundToInt(_floorSize.localScale.x / _gridSize.x);
-        float ZSnapPointsCount = Mathf.RoundToInt(_floorSize.localScale.z / _gridSize.z);
-
-        InitializeCenterSnapPoints(floorStartPosition, XSnapPointsCount, ZSnapPointsCount);
-        InitializeWallSnapPoints(floorStartPosition, XSnapPointsCount, ZSnapPointsCount);
-    }
-
-    private void InitializeCenterSnapPoints(Vector3 floorStartPosition, float XSnapPointsCount, float ZSnapPointsCount)
-    {
-        for (int y = 0; y < _YSnapPointsCount; y++)
-        {
-            for (int x = 0; x < XSnapPointsCount; x++)
-            {
-                for (int z = 0; z < ZSnapPointsCount; z++)
-                {
-                    float XPosition = (_gridSize.x / 2) + (_gridSize.x * x);
-                    float YPosition = (_gridSize.y / 5) + (_gridSize.y * y);
-                    float ZPosition = (_gridSize.z / 2) + (_gridSize.z * z);
-
-                    Vector3 snapPointPosition = floorStartPosition + new Vector3(XPosition, YPosition, ZPosition);
-                    Vector3Int gridCoordinate = new Vector3Int(x * 2, y * 2, z * 2);
-
-                    CenterSnapPoint centerSnapPoint = new CenterSnapPoint
-                    {
-                        Position = snapPointPosition,
-                        GridCoordinate = gridCoordinate,
-                        IsSupported = y == 0 ? true : false
-                    };
-
-                    _centerAllSP.Add(centerSnapPoint);
-
-                    _snapPointsGrid.Add(gridCoordinate, centerSnapPoint);
-                }
-            }
-        }
-
-        Debug.Log($"Initialized Center Snap Points: {_centerAllSP.Count}");
-    }
-
-    private void InitializeWallSnapPoints(Vector3 floorStartPosition, float XSnapPointsCount, float ZSnapPointsCount)
-    {
-        for (int y = 0; y < _YSnapPointsCount; y++)
-        {
-            for (int x = 0; x < XSnapPointsCount; x++)
-            {
-                for (int z = 0; z <= ZSnapPointsCount; z++)
-                {
-                    float XPosition = (_gridSize.x / 2) + (_gridSize.x * x);
-                    float YPosition = (_gridSize.y * y);
-                    float ZPosition = (_gridSize.z * z);
-
-                    Vector3 snapPointPosition = floorStartPosition + new Vector3(XPosition, YPosition, ZPosition);
-                    Vector3Int gridCoordinate = new Vector3Int(x * 2, y * 2, z * 2 - 1);
-
-                    WallSnapPoint wallSnapPoint = new WallSnapPoint
-                    {
-                        Position = snapPointPosition,
-                        Rotation = Quaternion.identity,
-                        GridCoordinate = gridCoordinate,
-                        IsSupported = y == 0 ? true : false
-                    };
-
-                    _wallAllSP.Add(wallSnapPoint);
-
-                    _snapPointsGrid.Add(gridCoordinate, wallSnapPoint);
-                }
-            }
-        }
-
-        for (int y = 0; y < _YSnapPointsCount; y++)
-        {
-            for (int x = 0; x <= XSnapPointsCount; x++)
-            {
-                for (int z = 0; z < ZSnapPointsCount; z++)
-                {
-                    float XPosition = (_gridSize.x * x);
-                    float YPosition = (_gridSize.y * y);
-                    float ZPosition = (_gridSize.x / 2) + (_gridSize.z * z);
-
-                    Vector3 snapPointPosition = floorStartPosition + new Vector3(XPosition, YPosition, ZPosition);
-                    Vector3Int gridCoordinate = new Vector3Int(x * 2 - 1, y * 2, z * 2);
-
-                    WallSnapPoint wallSnapPoint = new WallSnapPoint
-                    {
-                        Position = snapPointPosition,
-                        Rotation = Quaternion.Euler(0, 90, 0),
-                        GridCoordinate = gridCoordinate,
-                        IsSupported = y == 0 ? true : false
-                    };
-
-                    _wallAllSP.Add(wallSnapPoint);
-
-                    _snapPointsGrid.Add(gridCoordinate, wallSnapPoint);
-                }
-            }
-        }
-
-        Debug.Log($"Initialized Wall Snap Points: {_wallAllSP.Count}");
     }
 
     private void Update()

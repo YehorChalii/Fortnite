@@ -1515,7 +1515,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 192
   _floorSize: {fileID: 329709718}
-  _gridSize: {x: 6.5, y: 5, z: 6.5}
+  _cellSize: {x: 6.5, y: 5, z: 6.5}
   _YSnapPointsCount: 10
   _maxDistanceToUpdate: 1
   _drawGizmos: 0

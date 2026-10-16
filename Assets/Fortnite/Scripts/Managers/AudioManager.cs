@@ -29,33 +29,33 @@ public class AudioManager : MonoBehaviour
         BuildingManager.OnBuildingDestroyed -= HandleBuildingDestroy;
     }
 
-    private void HandleBuildingPlace(BuildingManager.BuildingMaterial material)
+    private void HandleBuildingPlace(BuildingMaterial material)
     {
         switch (material)
         {
-            case BuildingManager.BuildingMaterial.Wood:
+            case BuildingMaterial.Wood:
                 PlayClip(_woodBuildingPlaceClip);
                 break;
-            case BuildingManager.BuildingMaterial.Brick:
+            case BuildingMaterial.Brick:
                 PlayClip(_brickBuildingPlaceClip);
                 break;
-            case BuildingManager.BuildingMaterial.Metal:
+            case BuildingMaterial.Metal:
                 PlayClip(_metalBuildingPlaceClip);
                 break;
         }
     }
 
-    private void HandleBuildingDestroy(BuildingManager.BuildingMaterial material)
+    private void HandleBuildingDestroy(BuildingMaterial material)
     {
         switch (material)
         {
-            case BuildingManager.BuildingMaterial.Wood:
+            case BuildingMaterial.Wood:
                 PlayClip(_woodBuildingDestroyClip);
                 break;
-            case BuildingManager.BuildingMaterial.Brick:
+            case BuildingMaterial.Brick:
                 PlayClip(_brickBuildingDestroyClip);
                 break;
-            case BuildingManager.BuildingMaterial.Metal:
+            case BuildingMaterial.Metal:
                 PlayClip(_metalBuildingDestroyClip);
                 break;
         }

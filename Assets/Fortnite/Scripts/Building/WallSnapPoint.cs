@@ -4,18 +4,18 @@ public class WallSnapPoint : SnapPoint
 {
     private bool _isWallPlaced = false;
 
-    public override bool IsAvailable(BuildingManager.SelectedBuildingPiece buildingPiece)
+    public override bool IsAvailable(SelectedBuildingPiece buildingPiece)
     {
-        return buildingPiece == BuildingManager.SelectedBuildingPiece.Wall && !_isWallPlaced;
+        return buildingPiece == SelectedBuildingPiece.Wall && !_isWallPlaced;
     }
 
-    public override void TakeSlot(BuildingManager.SelectedBuildingPiece buildingPiece)
+    public override void TakeSlot(SelectedBuildingPiece buildingPiece)
     {
-        if (buildingPiece == BuildingManager.SelectedBuildingPiece.Wall) _isWallPlaced = true;
+        if (buildingPiece == SelectedBuildingPiece.Wall) _isWallPlaced = true;
     }
 
-    public override void FreeSlot(BuildingManager.SelectedBuildingPiece buildingPiece)
+    public override void FreeSlot(SelectedBuildingPiece buildingPiece)
     {
-        if (buildingPiece == BuildingManager.SelectedBuildingPiece.Wall) _isWallPlaced = false;
+        if (buildingPiece == SelectedBuildingPiece.Wall) _isWallPlaced = false;
     }
 }
